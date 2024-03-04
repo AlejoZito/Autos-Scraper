@@ -6,29 +6,25 @@ from bs4 import BeautifulSoup
 import pandas as pd
 import os
 
-
-# Por c item recorrer y popular dataframe
-# Volcar todo a un file
 csv_location = "input.csv"
 base_url = ""
-usdQuotation = 1150
+usdQuotation = 1050
 kmsScoringMultiplier = 200000
 
 class BusquedaModelo:
-    def __init__(self, url, transmision, tipoDePublicacion, marca, modelo, version, carroceria):
+    def __init__(self, url, url_short_version, transmision, marca, modelo, version, carroceria):
         self.Url = url #e.g.: https://autos.mercadolibre.com.ar/fiat/500/manual/fiat-500-sport
+        self.UrlShortVersion = url_short_version
         self.Transmision = transmision
-        self.TipoDePublicacion = tipoDePublicacion
         self.Marca = marca
         self.Modelo = modelo
         self.Version = version
         self.Carroceria = carroceria
 
     def __str__(self):
-        return 'url:{}, transmision:{}, tipoDePublicacion:{}, marca:{}, modelo:{}, version:{}, carroceria:{}'.format(
+        return 'url:{}, transmision:{}, marca:{}, modelo:{}, version:{}, carroceria:{}'.format(
             self.Url,
             self.Transmision,
-            self.TipoDePublicacion,
             self.Marca,
             self.Modelo,
             self.Version,
@@ -41,8 +37,8 @@ class CsvParser():
         df = pd.read_csv(file_location)
         return list(map(lambda x:BusquedaModelo(
             url=x[0],
-            transmision=x[1],
-            tipoDePublicacion=x[2],
+            url_short_version=str(x[1]).replace('.0',""),
+            transmision=x[2],
             marca=x[3],
             modelo=x[4],
             version=x[5],
@@ -95,7 +91,6 @@ class Scraper():
             "modelo": scrapingInput.Modelo,
             "version": scrapingInput.Version,
             "carroceria": scrapingInput.Carroceria,
-            "tipoDePublicacion": scrapingInput.TipoDePublicacion,
             "transmision": scrapingInput.Transmision,
             "price": price,
             "post link": post_link,
@@ -109,7 +104,7 @@ class Scraper():
             "scraping_date": scraping_date         
         }
 
-        if post_data.year > 2024:
+        if post_data["year"] > 2024:
             return
 
         # save the dictionaries in a list
@@ -119,15 +114,21 @@ class Scraper():
         #for each scraping input, generate n urls + dump data into Scraper property
         for scrapingInput in scrapingInputs:
             #initialize url with base url
-            urls = list([scrapingInput.Url])
+            version = f"_SHORT*VERSION_{scrapingInput.UrlShortVersion}" if scrapingInput.UrlShortVersion != "nan" else ""
+            urls = list([f"{scrapingInput.Url}{version}"])
             print(urls)
 
             #create other pages urls
-            page_number = 50
-            for i in range(0, 10000, 50):
-                urls.append(f"{scrapingInput.Url}_Desde_{page_number + 1}_NoIndex_True")
-                page_number += 50
+            page_number = 48
+            page_size = page_number
+            for i in range(0, 500, page_size):
+                
+                url = f"{scrapingInput.Url}_Desde_{page_number + 1}_NoIndex_True{version}"
+                urls.append(url)
+                page_number += page_size
         
+            print(urls)
+
             # Iterate over each url
             for i, url in enumerate(urls, start=1):
 
@@ -135,7 +136,7 @@ class Scraper():
                 response = requests.get(url)
 
                 if i == 1:
-                    filenameUrl = url.replace("/", "_").replace(":","").replace(".","")
+                    filenameUrl = url.replace("/", "_").replace(":","").replace(".","").replace("*","")
                     f = open(r"data/html/" + filenameUrl + ".html", "w", encoding="utf-8")
                     f.write(response.text)
                     f.close()
@@ -171,4 +172,4 @@ if __name__ == "__main__":
     s = Scraper()
     s.scraping(scrapingInputs=scrapingInput)
 
-    s.export_to_csv("pruebas 3-3-2024")
+    s.export_to_csv("output_data")
